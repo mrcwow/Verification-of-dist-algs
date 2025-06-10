@@ -1,0 +1,195 @@
+/* Глобальная переменная с сигналом светофора для каждого направления */
+mtype = { GREEN, RED };
+int NS_LIGHT = RED;
+int SW_LIGHT = RED;
+int ED_LIGHT = RED;
+int WN_LIGHT = RED;
+int WD_LIGHT = RED;
+int DN_LIGHT = RED;
+
+/* Глобальное мьютексное взаимное исключение для 10 пересечений c 6 направлениями */
+chan LOCK[10] = [6] of { int };
+
+/* Глобальная переменная с наличием автомобилей для каждого направления */
+bool NS_SENSE = false;
+bool SW_SENSE = false;
+bool ED_SENSE = false;
+bool WN_SENSE = false;
+bool WD_SENSE = false;
+bool DN_SENSE = false;
+
+/* Свойства безопасности */
+ltl safety_NS { [] ! ((SW_LIGHT == GREEN || ED_LIGHT == GREEN || WN_LIGHT == GREEN || WD_LIGHT == GREEN || DN_LIGHT == GREEN) && (NS_LIGHT == GREEN)) }
+ltl safety_SW { [] ! ((NS_LIGHT == GREEN || WN_LIGHT == GREEN || WD_LIGHT == GREEN) && (SW_LIGHT == GREEN)) }
+ltl safety_ED { [] ! ((NS_LIGHT == GREEN || WN_LIGHT == GREEN || DN_LIGHT == GREEN) && (ED_LIGHT == GREEN)) }
+ltl safety_WN { [] ! ((NS_LIGHT == GREEN || SW_LIGHT == GREEN || ED_LIGHT == GREEN) && (WN_LIGHT == GREEN)) }
+ltl safety_WD { [] ! ((NS_LIGHT == GREEN || SW_LIGHT == GREEN || DN_LIGHT == GREEN) && (WD_LIGHT == GREEN)) }
+ltl safety_DN { [] ! ((NS_LIGHT == GREEN || ED_LIGHT == GREEN || WD_LIGHT == GREEN) && (DN_LIGHT == GREEN)) }
+
+/* Свойства живости */
+ltl liveness_NS { [] ((NS_SENSE && NS_LIGHT == RED) -> <> (NS_LIGHT == GREEN)) }
+ltl liveness_SW { [] ((SW_SENSE && SW_LIGHT == RED) -> <> (SW_LIGHT == GREEN)) }
+ltl liveness_ED { [] ((ED_SENSE && ED_LIGHT == RED) -> <> (ED_LIGHT == GREEN)) }
+ltl liveness_WN { [] ((WN_SENSE && WN_LIGHT == RED) -> <> (WN_LIGHT == GREEN)) }
+ltl liveness_WD { [] ((WD_SENSE && WD_LIGHT == RED) -> <> (WD_LIGHT == GREEN)) }
+ltl liveness_DN { [] ((DN_SENSE && DN_LIGHT == RED) -> <> (DN_LIGHT == GREEN)) }
+
+/* Свойства справедливости */
+ltl fairness_NS { [] <> ! ((NS_LIGHT == GREEN) && NS_SENSE) }
+ltl fairness_SW { [] <> ! ((SW_LIGHT == GREEN) && SW_SENSE) }
+ltl fairness_ED { [] <> ! ((ED_LIGHT == GREEN) && ED_SENSE) }
+ltl fairness_WN { [] <> ! ((WN_LIGHT == GREEN) && WN_SENSE) }
+ltl fairness_WD { [] <> ! ((WD_LIGHT == GREEN) && WD_SENSE) }
+ltl fairness_DN { [] <> ! ((DN_LIGHT == GREEN) && DN_SENSE) }
+
+/* Контроллер среды */
+proctype env_controller() {
+    do
+    :: !NS_SENSE -> NS_SENSE = true;
+    :: !SW_SENSE -> SW_SENSE = true;
+    :: !ED_SENSE -> ED_SENSE = true;
+    :: !WN_SENSE -> WN_SENSE = true;
+    :: !WD_SENSE -> WD_SENSE = true;
+    :: !DN_SENSE -> DN_SENSE = true;
+    od
+}
+
+/* Контроллер светофора, или направления, NS */
+proctype NS() {
+    do
+    /* В случае обнаружения автомобиля на направлении при красном сигнале светофора ставим направление в очередь и ожидаем ее, в каждом пересечении,
+    затем разрешаем проезд зеленым сигналом светофора */
+    :: NS_SENSE && NS_LIGHT == RED -> {
+        LOCK[0] ! 0; LOCK[0] ? <0>;
+        LOCK[1] ! 0; LOCK[1] ? <0>;
+        LOCK[2] ! 0; LOCK[2] ? <0>;
+        LOCK[3] ! 0; LOCK[3] ? <0>;
+        LOCK[4] ! 0; LOCK[4] ? <0>;
+        NS_LIGHT = GREEN;
+    }
+
+    /* При включении зеленого сигнала светофора считаем проезд автомобилей завершенным и включаем красный сигнал и убираем направление из очередей */
+    :: NS_LIGHT == GREEN -> {
+        NS_SENSE = false;
+        NS_LIGHT = RED;
+        LOCK[0] ? 0;
+        LOCK[1] ? 0;
+        LOCK[2] ? 0;
+        LOCK[3] ? 0;
+        LOCK[4] ? 0;
+    }
+    od
+}
+
+/* Контроллер светофора, или направления, SW */
+proctype SW() {
+    do
+    :: SW_SENSE && SW_LIGHT == RED -> {
+        LOCK[0] ! 1; LOCK[0] ? <1>;
+        LOCK[5] ! 1; LOCK[5] ? <1>;
+        LOCK[6] ! 1; LOCK[6] ? <1>;
+        SW_LIGHT = GREEN;
+    }
+
+    :: SW_LIGHT == GREEN -> {
+        SW_SENSE = false;
+        SW_LIGHT = RED;
+        LOCK[0] ? 1;
+        LOCK[5] ? 1;
+        LOCK[6] ? 1;
+    }
+    od
+}
+
+/* Контроллер светофора, или направления, ED */
+proctype ED() {
+    do
+    :: ED_SENSE && ED_LIGHT == RED -> {
+        LOCK[1] ! 2; LOCK[1] ? <2>;
+        LOCK[7] ! 2; LOCK[7] ? <2>;
+        LOCK[8] ! 2; LOCK[8] ? <2>;
+        ED_LIGHT = GREEN;
+    }
+
+    :: ED_LIGHT == GREEN -> {
+        ED_SENSE = false;
+        ED_LIGHT = RED;
+        LOCK[1] ? 2;
+        LOCK[7] ? 2;
+        LOCK[8] ? 2;
+    }
+    od
+}
+
+/* Контроллер светофора, или направления, WN */
+proctype WN() {
+    do
+    :: WN_SENSE && WN_LIGHT == RED -> {
+        LOCK[2] ! 3; LOCK[2] ? <3>;
+        LOCK[5] ! 3; LOCK[5] ? <3>;
+        LOCK[7] ! 3; LOCK[7] ? <3>;
+        WN_LIGHT = GREEN;
+    }
+
+    :: WN_LIGHT == GREEN -> {
+        WN_SENSE = false;
+        WN_LIGHT = RED;
+        LOCK[2] ? 3;
+        LOCK[5] ? 3;
+        LOCK[7] ? 3;
+    }
+    od
+}
+
+/* Контроллер светофора, или направления, WD */
+proctype WD() {
+    do
+    :: WD_SENSE && WD_LIGHT == RED -> {
+        LOCK[3] ! 4; LOCK[3] ? <4>;
+        LOCK[6] ! 4; LOCK[6] ? <4>;
+        LOCK[9] ! 4; LOCK[9] ? <4>;
+        WD_LIGHT = GREEN;
+    }
+
+    :: WD_LIGHT == GREEN -> {
+        WD_SENSE = false;
+        WD_LIGHT = RED;
+        LOCK[3] ? 4;
+        LOCK[6] ? 4;
+        LOCK[9] ? 4;
+    }
+    od
+}
+
+/* Контроллер светофора, или направления, DN */
+proctype DN() {
+    do
+    :: DN_SENSE && DN_LIGHT == RED -> {
+        LOCK[4] ! 5; LOCK[4] ? <5>;
+        LOCK[8] ! 5; LOCK[8] ? <5>;
+        LOCK[9] ! 5; LOCK[9] ? <5>;
+        DN_LIGHT = GREEN;
+    }
+
+    :: DN_LIGHT == GREEN -> {
+        DN_SENSE = false;
+        DN_LIGHT = RED;
+        LOCK[4] ? 5;
+        LOCK[8] ? 5;
+        LOCK[9] ? 5;
+    }
+    od
+}
+
+init {
+    /* Атомарное создание всех процессов */
+    atomic {
+        run env_controller();
+        run NS();
+        run SW();
+        run ED();
+        run WN();
+        run WD();
+        run DN();
+    }
+}
